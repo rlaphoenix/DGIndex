@@ -5,7 +5,7 @@ DGIndex, part of the DGMPGDec package, is primarily designed to create an index 
 DGIndex is an evolution of Chia-chen Kuo's DVD2AVI and is baselined off DVD2AVI v1.77.3.
 The evolved version was renamed to DGIndex to avoid naming confusions, to reflect the significant divergence of functionality, and to clearly link it with neuron2's companion tools in DGMPGDec. Neuron2 wants to take great pains to acknowledge the origins of DGIndex as described in the Credits section below.
 
-You can get the latest binaries and source code of DGMPGDec at [http://rationalqm.us/dgmpgdec/](http://rationalqm.us/dgmpgdec/).
+You can get the latest binaries and source code of DGMPGDec at [http://rationalqm.us/dgmpgdec/dgmpgdec.html](http://rationalqm.us/dgmpgdec/dgmpgdec.html).
 
 DGIndex is free software distributed under the terms of the GNU GPL v2 license. You must agree to the terms of the license before using the program or its source code. Please see the [License](#License) section for details.
 
