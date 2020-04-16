@@ -1502,13 +1502,13 @@ So "3/2" means 5.1 without the LFE (maybe 5.0 would be better terminology, but 3
 
 Some aspects of DGIndex's behavior can be modified via the INI file but not through the GUI, as described below:
 
-Use_MPA_Extensions=0: The extension used on demultiplexed MPEG audio files will be "mp1", "mp2", or "mp3", depending on the audio layer.
-Use_MPA_Extensions=1: The extension used on demultiplexed MPEG audio files will be "mpa".
+- Use_MPA_Extensions=0: The extension used on demultiplexed MPEG audio files will be "mp1", "mp2", or "mp3", depending on the audio layer.
+- Use_MPA_Extensions=1: The extension used on demultiplexed MPEG audio files will be "mpa".
 
-Notify_When_Done=0: No notification is done when a Save Project operation is finished.
-Notify_When_Done=1: The end of a Save Project operation is signaled by bringing the DGIndex window to the foreground.
-Notify_When_Done=2: The end of a Save Project operation is signaled by a beep.
-Notify_When_Done=3: The end of a Save Project operation is signaled by bringing the DGIndex window to the foreground and a beep.
+- Notify_When_Done=0: No notification is done when a Save Project operation is finished.
+- Notify_When_Done=1: The end of a Save Project operation is signaled by bringing the DGIndex window to the foreground.
+- Notify_When_Done=2: The end of a Save Project operation is signaled by a beep.
+- Notify_When_Done=3: The end of a Save Project operation is signaled by bringing the DGIndex window to the foreground and a beep.
 
 [back to top][top]
 
@@ -1519,18 +1519,18 @@ I have only re-written it in markdown format and fixed a few mistakes and update
 
 Alphabetical Order:
 
-"Cyberia", users manual contents and modernization
-"dvd2svcd", command line interface
-"fccHandler", MPEG decoding fixes/improvements, good advice
-Donald Graft ("neuron2"), frame loss fix, accurate indexing, PVA support, MPEG1 support, and more
-Peter Gubanov, author of the MMX/SSEMMX iDCT
-Chia-chen Kuo ("jackei"), author of DVD2AVI
-Miha Peternel, author of the Floating Point and Reference iDCT
-Dmitry Rozhdestvensky, author of the SSE2 iDCT
-"sh0dan", code optimizations
-"Skal", for his SSEMMX iDCT
-"trbarry", transport parsing, and code optimizations
-"tritical", upsampling, and more
+- "Cyberia", users manual contents and modernization
+- "dvd2svcd", command line interface
+- "fccHandler", MPEG decoding fixes/improvements, good advice
+- Donald Graft ("neuron2"), frame loss fix, accurate indexing, PVA support, MPEG1 support, and more
+- Peter Gubanov, author of the MMX/SSEMMX iDCT
+- Chia-chen Kuo ("jackei"), author of DVD2AVI
+- Miha Peternel, author of the Floating Point and Reference iDCT
+- Dmitry Rozhdestvensky, author of the SSE2 iDCT
+- "sh0dan", code optimizations
+- "Skal", for his SSEMMX iDCT
+- "trbarry", transport parsing, and code optimizations
+- "tritical", upsampling, and more
 
 [back to top][top]
 
