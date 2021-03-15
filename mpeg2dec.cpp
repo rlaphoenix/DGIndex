@@ -122,7 +122,7 @@ do_rip_play:
 
 		case LOCATE_SCROLL:
 			CurrentFile = process.startfile;
-			_lseeki64(Infile[process.startfile], (process.startloc/SECTOR_SIZE)*SECTOR_SIZE, SEEK_SET);
+			_fseeki64(Infile[process.startfile], (process.startloc/SECTOR_SIZE)*SECTOR_SIZE, SEEK_SET);
 			Initialize_Buffer();
 
 			timing.op = 0;
@@ -159,7 +159,7 @@ do_rip_play:
 		}
 		// Position to start of the first file.
 		CurrentFile = 0;
-		_lseeki64(Infile[0], 0, SEEK_SET);
+		_fseeki64(Infile[0], 0, SEEK_SET);
 		Initialize_Buffer();
 		while (1)
 		{
@@ -185,10 +185,10 @@ do_rip_play:
 		// captured transport files were seen to start with a large
 		// number of nulls.
 
-		_lseeki64(Infile[0], 0, SEEK_SET);
+		_fseeki64(Infile[0], 0, SEEK_SET);
         for (;;)
 		{
-			if (_read(Infile[0], buf, 1) == 0)
+			if (fread(buf, 1, 1, Infile[0]) == 0)
 			{
 				// EOF
 				MessageBox(hWnd, "File contains all nulls!", NULL, MB_OK | MB_ICONERROR);
@@ -197,12 +197,12 @@ do_rip_play:
 			if (buf[0] != 0)
 			{
 				// Unread the non-null byte and exit.
-				_lseeki64(Infile[0], _lseeki64(Infile[0], 0, SEEK_CUR) - 1, SEEK_SET);
+				_fseeki64(Infile[0], -1, SEEK_CUR);
 				break;
 			}
 		}
 
-	    Read = _read(Infile[0], buf, 2048);
+	    Read = fread(buf, 1, 2048, Infile[0]);
 		TransportPacketSize = 188;
 try_again:
         b = buf;
@@ -245,7 +245,7 @@ try_again:
 		if (SystemStream_Flag != TRANSPORT_STREAM)
 		{
 			CurrentFile = 0;
-			_lseeki64(Infile[0], 0, SEEK_SET);
+			_fseeki64(Infile[0], 0, SEEK_SET);
 			Initialize_Buffer();
 
 			for(i = 0; i < 1024; i++)
@@ -264,7 +264,7 @@ try_again:
 		// If the file does not contain a sequence header start code, it can't be an MPEG file.
 		// We're already byte aligned at the start of the file.
 		CurrentFile = 0;
-		_lseeki64(Infile[0], 0, SEEK_SET);
+		_fseeki64(Infile[0], 0, SEEK_SET);
 		Initialize_Buffer();
 		count = 0;
 		while ((show = Show_Bits(32)) != 0x1b3)
@@ -296,7 +296,7 @@ try_again:
 		}
 
 		CurrentFile = 0;
-		_lseeki64(Infile[0], 0, SEEK_SET);
+		_fseeki64(Infile[0], 0, SEEK_SET);
 		Initialize_Buffer();
 
 		// We know the stream type now, so our parsing is immune to
@@ -406,7 +406,7 @@ try_again:
         savefile = process.startfile;
         saveloc = process.startloc;
 	    CurrentFile = process.startfile;
-	    _lseeki64(Infile[process.startfile], (process.startloc/SECTOR_SIZE)*SECTOR_SIZE, SEEK_SET);
+	    _fseeki64(Infile[process.startfile], (process.startloc/SECTOR_SIZE)*SECTOR_SIZE, SEEK_SET);
 	    // We initialize the following variables to the current start position, because if the user
 	    // has set a range, and the packs are large such that we won't hit a pack/packet start
 	    // before we hit an I frame, we don't want the pack/packet position to remain at 0.
@@ -448,7 +448,9 @@ try_again:
     }
     PTSAdjustDone = 0;
 	CurrentFile = process.startfile;
-	_lseeki64(Infile[process.startfile], (process.startloc/SECTOR_SIZE)*SECTOR_SIZE, SEEK_SET);
+	int xyz;
+	long long offset = (process.startloc / SECTOR_SIZE) * SECTOR_SIZE;
+	xyz = _fseeki64(Infile[process.startfile], offset, SEEK_SET);
 	// We initialize the following variables to the current start position, because if the user
 	// has set a range, and the packs are large such that we won't hit a pack/packet start
 	// before we hit an I frame, we don't want the pack/packet position to remain at 0.
@@ -522,12 +524,12 @@ static BOOL GOPBack()
 			return false;
 		}
 
-		_lseeki64(Infile[process.startfile], process.startloc, SEEK_SET);
+		_fseeki64(Infile[process.startfile], process.startloc, SEEK_SET);
 		Initialize_Buffer();
 
 		for (;;)
 		{
-			curloc = _telli64(Infile[process.startfile]);
+			curloc = _ftelli64(Infile[process.startfile]);
 			if (curloc >= endloc) break;
 			Get_Hdr(0);
 			if (Stop_Flag == true)

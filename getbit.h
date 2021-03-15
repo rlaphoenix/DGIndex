@@ -87,7 +87,8 @@ __forceinline static unsigned int Get_Byte()
 
 	while (Rdptr >= Rdbfr+BUFFER_SIZE)
 	{
-		Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+//		Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+		Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);
 		if (Read < BUFFER_SIZE)
             Next_File();
 

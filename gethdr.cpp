@@ -165,7 +165,7 @@ int Get_Hdr(int mode)
 				else
 				{
 //					dprintf("DGIndex: Index sequence header at %d\n", Rdptr - 8 + (32 - BitsLeft)/8);
-					d2v_current.position = _telli64(Infile[CurrentFile])
+					d2v_current.position = _ftelli64(Infile[CurrentFile])
 										   - (BUFFER_SIZE - (Rdptr - Rdbfr))
 										   - 8
 										   + (32 - BitsLeft)/8;
@@ -175,11 +175,13 @@ int Get_Hdr(int mode)
 				HadSequenceHeader = true;
 				break;
 
+#if 0
 			case SEQUENCE_END_CODE:
 				Get_Bits(32);
 				if (mode == 1)
 					return 1;
 				break;
+#endif
 
 			case GROUP_START_CODE:
 				Get_Bits(32);
@@ -192,7 +194,7 @@ int Get_Hdr(int mode)
 				if (SystemStream_Flag != ELEMENTARY_STREAM)
 					position = CurrentPackHeaderPosition;
 				else
-					position = _telli64(Infile[CurrentFile])
+					position = _ftelli64(Infile[CurrentFile])
 										   - (BUFFER_SIZE - (Rdptr - Rdbfr))
 										   - 8
 										   + (32 - BitsLeft)/8;
@@ -237,7 +239,7 @@ void sequence_header()
 	vbv_buffer_size             = Get_Bits(10);
 	constrained_parameters_flag = Get_Bits(1);
 
-	if (load_intra_quantizer_matrix = Get_Bits(1))
+	if ((load_intra_quantizer_matrix = Get_Bits(1)) && (Show_Bits(8) == 8))
 	{
 		for (i=0; i<64; i++)
 			intra_quantizer_matrix[scan[ZIG_ZAG][i]] = Get_Bits(8);
@@ -248,7 +250,7 @@ void sequence_header()
 			intra_quantizer_matrix[i] = default_intra_quantizer_matrix[i];
 	}
 
-	if (load_non_intra_quantizer_matrix = Get_Bits(1))
+	if ((load_non_intra_quantizer_matrix = Get_Bits(1)) && (Show_Bits(8) != 0))
 	{
 		for (i=0; i<64; i++)
 			non_intra_quantizer_matrix[scan[ZIG_ZAG][i]] = Get_Bits(8);
@@ -410,7 +412,7 @@ static void picture_header(__int64 start, boolean HadSequenceHeader, boolean Had
 	if (d2v_current.type == I_TYPE)
 	{
 		d2v_current.file = process.startfile = CurrentFile;
-		process.startloc = _telli64(Infile[CurrentFile]);
+		process.startloc = _ftelli64(Infile[CurrentFile]);
 		d2v_current.lba = process.startloc/SECTOR_SIZE - 1;
 		if (d2v_current.lba < 0)
 		{
@@ -452,7 +454,10 @@ static void picture_header(__int64 start, boolean HadSequenceHeader, boolean Had
 		{
 			ThreadKill(END_OF_DATA_KILL);
 		}
+	}
 
+	if (!D2V_Flag || !(Frame_Number % 1000))
+	{
 		if (Info_Flag)
 			UpdateInfo();
 		UpdateWindowText();

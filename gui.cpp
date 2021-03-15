@@ -25,11 +25,12 @@
 #include <windows.h>
 #include "resource.h"
 #include "Shlwapi.h"
+#include <lm.h>
 
 #define GLOBAL
 #include "global.h"
 
-static char Version[] = "DGIndex 1.5.8";
+static char Version[] = "DGIndex 2.0.0.5";
 
 #define TRACK_HEIGHT	32
 #define INIT_WIDTH		480
@@ -74,7 +75,6 @@ static void SaveBMP(void);
 static void CopyBMP(void);
 static void OpenVideoFile(HWND);
 static void OpenAudioFile(HWND);
-DWORD WINAPI ProcessWAV(LPVOID n);
 void OutputProgress(int);
 
 static void StartupEnables(void);
@@ -100,6 +100,48 @@ extern int parse_d2v(HWND hWnd, char *path);
 extern int analyze_sync(HWND hWnd, char *path, int track);
 extern unsigned char *Rdbfr;
 
+bool GetWindowsVersion(DWORD& major, DWORD& minor)
+{
+	LPBYTE pinfoRawData;
+	if (NERR_Success == NetWkstaGetInfo(NULL, 100, &pinfoRawData))
+	{
+		WKSTA_INFO_100 * pworkstationInfo = (WKSTA_INFO_100 *)pinfoRawData;
+		major = pworkstationInfo->wki100_ver_major;
+		minor = pworkstationInfo->wki100_ver_minor;
+		::NetApiBufferFree(pinfoRawData);
+		return true;
+	}
+	return false;
+}
+
+int MessageBoxTimeout(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType, WORD wLanguageId, DWORD dwMilliseconds)
+{
+	typedef int(__stdcall* MSGBOXAAPI)(IN HWND hWnd, IN LPCSTR lpText, IN LPCSTR lpCaption, IN UINT uType, IN WORD wLanguageId, IN DWORD dwMilliseconds);
+	static MSGBOXAAPI MsgBoxTOA = NULL;
+
+	if (!MsgBoxTOA)
+	{
+		HMODULE hUser32 = GetModuleHandle("user32.dll");
+		if (hUser32)
+		{
+			MsgBoxTOA = (MSGBOXAAPI)GetProcAddress(hUser32, "MessageBoxTimeoutA");
+			//fall through to 'if (MsgBoxTOA)...'
+		}
+		else
+		{
+			//Stuff happened, add code to handle it here (possibly just call MessageBox())
+			return 0;
+		}
+	}
+
+	if (MsgBoxTOA)
+	{
+		return MsgBoxTOA(hWnd, lpText, lpCaption, uType, wLanguageId, dwMilliseconds);
+	}
+
+	return 0;
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	MSG msg;
@@ -110,17 +152,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	char ucCmdLine[4096];
 	char prog[DG_MAX_PATH];
 	char cwd[DG_MAX_PATH];
+	DWORD major, minor;
 
-    OSVERSIONINFO osvi;
-
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-
-    GetVersionEx(&osvi);
-
-    bIsWindowsXPorLater = 
-       ( (osvi.dwMajorVersion > 5) ||
-       ( (osvi.dwMajorVersion == 5) && (osvi.dwMinorVersion >= 1) ));
+	if (GetWindowsVersion(major, minor))
+	bIsWindowsXPorLater = (major > 5) || ((major == 5) && (minor >= 1));
 
     if(bIsWindowsXPorLater)
 	{
@@ -414,7 +449,8 @@ TEST_END:
 		#define IN_FILE_QUOTED 1
 		#define IN_FILE_BARE 2
 		#define MAX_CMD 2048
-		int tmp, n, i, j, k;
+		int n, i, j, k;
+		FILE* tmp;
 		int state, ndx;
 		char *swp;
 
@@ -462,7 +498,7 @@ TEST_END:
 					if (*ptr == '"')
 					{
 						cwd[ndx] = 0;
-						if ((tmp = _open(cwd, _O_RDONLY | _O_BINARY)) != -1)
+						if ((tmp = fopen(cwd, "rb")) != NULL)
 						{
 //							MessageBox(hWnd, "Open OK", NULL, MB_OK);
 							strcpy(Infilename[NumLoadedFiles], cwd);
@@ -481,7 +517,7 @@ TEST_END:
 					if (*ptr == 0)
 					{
 						cwd[ndx] = 0;
-						if ((tmp = _open(cwd, _O_RDONLY | _O_BINARY)) != -1)
+						if ((tmp = fopen(cwd, "rb")) != NULL)
 						{
 //							MessageBox(hWnd, "Open OK", NULL, MB_OK);
 							strcpy(Infilename[NumLoadedFiles], cwd);
@@ -493,7 +529,7 @@ TEST_END:
 					else if (*ptr == ' ')
 					{
 						cwd[ndx] = 0;
-						if ((tmp = _open(cwd, _O_RDONLY | _O_BINARY)) != -1)
+						if ((tmp = fopen(cwd, "rb")) != NULL)
 						{
 //							MessageBox(hWnd, "Open OK", NULL, MB_OK);
 							strcpy(Infilename[NumLoadedFiles], cwd);
@@ -551,7 +587,7 @@ TEST_END:
 	{
 		// CLI invocation.
 		if (parse_cli(lpCmdLine, ucCmdLine) != 0)
-			exit(0);
+			exit(EXIT_FAILURE);
 		if (NumLoadedFiles)
 		{
 			// Start a LOCATE_INIT thread. When it kills itself, it will start a
@@ -627,7 +663,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			// Make an AVS file if it doesn't already exist and a template exists.
 			strcpy(avsfile, D2VFilePath);
 			path_p = strrchr(avsfile, '.');
-			strcpy(++path_p, "avs");
+			if (strstr(AVSTemplatePath, ".vpy") != NULL)
+				strcpy(++path_p, "vpy");
+			else
+				strcpy(++path_p, "avs");
 			if (*AVSTemplatePath && !fopen(avsfile, "r") && (tplate = fopen(AVSTemplatePath, "r")))
 			{
 				avs = fopen(avsfile, "w");
@@ -823,10 +862,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 case ID_MRU_FILE2:
                 case ID_MRU_FILE3:
                     {
-                        int tmp;
+                        FILE *tmp;
 
                         NumLoadedFiles = 0;
-                        if ((tmp = _open(mMRUList[wmId - ID_MRU_FILE0], _O_RDONLY | _O_BINARY)) != -1)
+                        if ((tmp = fopen(mMRUList[wmId - ID_MRU_FILE0], "rb")) != NULL)
 						{
                             strcpy(Infilename[NumLoadedFiles], mMRUList[wmId - ID_MRU_FILE0]);
 					        Infile[NumLoadedFiles] = tmp;
@@ -873,7 +912,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					while (NumLoadedFiles)
 					{
 						NumLoadedFiles--;
-						_close(Infile[NumLoadedFiles]);
+						fclose(Infile[NumLoadedFiles]);
 					}
 					Recovery();
 					MPEG2_Transport_VideoPID = 2;
@@ -964,15 +1003,10 @@ proceed:
 						sprintf(szBuffer, "%s.d2v", szOutput);
 						if (CLIActive)
 						{
-							if ((D2VFile = fopen(szBuffer, "w+")) == 0)
+							if ((D2VFile = fopen(szBuffer, "w")) == 0)
 							{
-								if (ExitOnEnd)
-								{
-									if (Info_Flag)
-										DestroyWindow(hDlg);
-									exit (0);
-								}
-								else CLIActive = 0;
+								MessageBoxTimeout(hWnd, "Couldn't open D2V file. Is it read-only?", NULL, MB_OK | MB_ICONERROR, 0, CLIActive ? CLITimeout : 0xffffffff);
+								exit(EXIT_FAILURE);
 							}
 							strcpy(D2VFilePath, szBuffer);
 						}
@@ -987,9 +1021,12 @@ proceed:
 							    if (MessageBox(hWnd, line, "Save D2V",
 								    MB_YESNO | MB_ICONWARNING) != IDYES)
 								    break;
-
 							}
-							D2VFile = fopen(szBuffer, "w+");
+							D2VFile = fopen(szBuffer, "w");
+							if (D2VFile == NULL)
+							{
+								MessageBoxTimeout(hWnd, "Couldn't open D2V file for writing. Is it read-only?", NULL, MB_OK | MB_ICONERROR, 0, CLIActive ? CLITimeout : 0xffffffff);
+							}
 							strcpy(D2VFilePath, szBuffer);
 						}
 
@@ -1046,8 +1083,6 @@ proceed:
 								hThread = CreateThread(NULL, 0, MPEG2Dec, 0, 0, &threadId);
 							}
 						}
-						else
-							MessageBox(hWnd, "Couldn't write D2V file. Is it read-only?", "Save D2V", MB_OK | MB_ICONERROR);
 					}
 					break;
 
@@ -1082,7 +1117,7 @@ D2V_PROCESS:
 						while (NumLoadedFiles)
 						{
 							NumLoadedFiles--;
-							_close(Infile[NumLoadedFiles]);
+							fclose(Infile[NumLoadedFiles]);
                             Infile[NumLoadedFiles] = NULL;
 						}
 
@@ -1094,11 +1129,11 @@ D2V_PROCESS:
 							fgets(Infilename[NumLoadedFiles-i], DG_MAX_PATH - 1, D2VFile);
 							// Strip newline.
 							Infilename[NumLoadedFiles-i][strlen(Infilename[NumLoadedFiles-i])-1] = 0;
-							if ((Infile[NumLoadedFiles-i] = _open(Infilename[NumLoadedFiles-i], _O_RDONLY | _O_BINARY | _O_SEQUENTIAL))==-1)
+							if ((Infile[NumLoadedFiles-i] = fopen(Infilename[NumLoadedFiles-i], "rb")) == NULL)
 							{
 								while (i<NumLoadedFiles)
 								{
-									_close(Infile[NumLoadedFiles-i-1]);
+									fclose(Infile[NumLoadedFiles-i-1]);
                                     Infile[NumLoadedFiles-i-1] = NULL;
 									i++;
 								}
@@ -1829,12 +1864,8 @@ D2V_PROCESS:
 					break;
 				}
 
-				case IDM_JACKEI:
-					ShellExecute(NULL, "open", "http://arbor.ee.ntu.edu.tw/~jackeikuo/dvd2avi/", NULL, NULL, SW_SHOWNORMAL);
-					break;
-
 				case IDM_NEURON2:
-					ShellExecute(NULL, "open", "http://neuron2.net/dgmpgdec/dgmpgdec.html", NULL, NULL, SW_SHOWNORMAL);
+					ShellExecute(NULL, "open", "http://rationalqm.us/dgmpgdec/dgmpgdec.html", NULL, NULL, SW_SHOWNORMAL);
 					break;
 
 				case IDM_EXIT:
@@ -2139,7 +2170,7 @@ right_arrow:
 			while (NumLoadedFiles)
 			{
 				NumLoadedFiles--;
-				_close(Infile[NumLoadedFiles]);
+				fclose(Infile[NumLoadedFiles]);
                 Infile[NumLoadedFiles] = NULL;
 			}
 
@@ -2176,7 +2207,7 @@ right_arrow:
 			// Open the files.
 			for (i = 0; i < NumLoadedFiles; i++)
 			{
-				Infile[i] = _open(Infilename[i], _O_RDONLY | _O_BINARY | _O_SEQUENTIAL);
+				Infile[i] = fopen(Infilename[i], "rb");
 			}
 			DialogBox(hInst, (LPCTSTR)IDD_FILELIST, hWnd, (DLGPROC)VideoList);
 			break;
@@ -2222,7 +2253,7 @@ right_arrow:
 			while (NumLoadedFiles)
 			{
 				NumLoadedFiles--;
-				_close(Infile[NumLoadedFiles]);
+				fclose(Infile[NumLoadedFiles]);
                Infile[NumLoadedFiles] = NULL;
 			}
 
@@ -2383,7 +2414,7 @@ LRESULT CALLBACK VideoList(HWND hVideoListDlg, UINT message, WPARAM wParam, LPAR
 	int i, j;
 	char updown[DG_MAX_PATH];
 	char *name;
-	int handle;
+	FILE *handle;
 
 	switch (message)
 	{
@@ -2452,7 +2483,7 @@ LRESULT CALLBACK VideoList(HWND hVideoListDlg, UINT message, WPARAM wParam, LPAR
 						i= SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_GETCURSEL, 0, 0);
 						SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_DELETESTRING, i, 0);
 						NumLoadedFiles--;
-						_close(Infile[i]);
+						fclose(Infile[i]);
                         Infile[i] = NULL;
 						for (j=i; j<NumLoadedFiles; j++)
 						{
@@ -2476,7 +2507,7 @@ LRESULT CALLBACK VideoList(HWND hVideoListDlg, UINT message, WPARAM wParam, LPAR
 						NumLoadedFiles--;
 						i= SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_GETCURSEL, 0, 0);
 						SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_DELETESTRING, i, 0);
-						_close(Infile[i]);
+						fclose(Infile[i]);
                         Infile[i] = NULL;
 						SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_SETCURSEL, i>=NumLoadedFiles ? NumLoadedFiles-1 : i, 0);
 					}
@@ -2493,8 +2524,8 @@ LRESULT CALLBACK VideoList(HWND hVideoListDlg, UINT message, WPARAM wParam, LPAR
 		                for (i = 0; i < NumLoadedFiles; i++)
 		                {
 			                if (Infile[i] != NULL)
-                                _close(Infile[i]);
-                            Infile[i] = _open(Infilename[i], _O_RDONLY | _O_BINARY | _O_SEQUENTIAL);
+                                fclose(Infile[i]);
+                            Infile[i] = fopen(Infilename[i], "rb");
 		                }
                     }
                     if (NumLoadedFiles)
@@ -2543,7 +2574,7 @@ static void OpenVideoFile(HWND hVideoListDlg)
 			if (_findfirst(szInput, &seqfile) == -1L) return;
 			SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_ADDSTRING, 0, (LPARAM) szInput);
 			strcpy(Infilename[NumLoadedFiles], szInput);
-			Infile[NumLoadedFiles] = _open(szInput, _O_RDONLY | _O_BINARY | _O_SEQUENTIAL);
+			Infile[NumLoadedFiles] = fopen(szInput, "rb");
 			NumLoadedFiles++;
 			// Set the output directory for a Save D2V operation to the
 			// same path as this input files.
@@ -2613,7 +2644,7 @@ static void OpenVideoFile(HWND hVideoListDlg)
 		{
 			SendDlgItemMessage(hVideoListDlg, IDC_LIST, LB_ADDSTRING, 0, (LPARAM) Infilename[i]);
 			if (Infile[i] == NULL)
-                Infile[i] = _open(Infilename[i], _O_RDONLY | _O_BINARY | _O_SEQUENTIAL);
+                Infile[i] = fopen(Infilename[i], "rb");
 		}
         HadAddDialog = 1;
     }
@@ -2649,9 +2680,47 @@ void ThreadKill(int mode)
 		}
 	}
 
+	if (D2V_Flag)
+	{
+		int i;
+
+		if (Quants)
+		{
+			fclose(Quants);
+			Quants = NULL;
+		}
+		if (Timestamps)
+		{
+			fclose(Timestamps);
+			Timestamps = NULL;
+		}
+		if (mpafp)
+		{
+			fclose(mpafp);
+			mpafp = NULL;
+		}
+		if (mpvfp)
+		{
+			fclose(mpvfp);
+			mpvfp = NULL;
+		}
+		if (pcmfp)
+		{
+			fclose(pcmfp);
+			pcmfp = NULL;
+		}
+		for (i = 0; i < 256; i++)
+		{
+			if (audio[i].file)
+			{
+				fclose(audio[i].file);
+				audio[i].file = NULL;
+			}
+		}
+	}
+
 	if (AudioOnly_Flag)
 	{
-		_fcloseall();
 		FileLoadedEnables();
 //		SendMessage(hTrack, TBM_SETSEL, (WPARAM) true, (LPARAM) MAKELONG(process.trackleft, process.trackright));
         if (NotifyWhenDone & 1)
@@ -2677,6 +2746,11 @@ void ThreadKill(int mode)
 				fprintf(D2VFile, "  %.2f%% FILM\n", film_percent);
 			else
 				fprintf(D2VFile, "  %.2f%% VIDEO\n", 100.0 - film_percent);
+			if (D2VFile)
+			{
+				fclose(D2VFile);
+				D2VFile = NULL;
+			}
 		}
 
         if (MuxFile > 0 && MuxFile != (FILE *) 0xffffffff)
@@ -2685,8 +2759,6 @@ void ThreadKill(int mode)
 
             StopVideoDemux();
         }
-
-		_fcloseall();
 
 		if (D2V_Flag)
         {
@@ -3318,7 +3390,9 @@ LRESULT CALLBACK SelectDelayTrack(HWND hDialog, UINT message, WPARAM wParam, LPA
                     GetDlgItemText(hDialog, IDC_DELAY_LIST, delay_track, 255);
                     strcpy(Delay_Track, delay_track);
                     p = delay_track;
-                    sscanf(p, "%x", &audio_id);
+					unsigned int dumdum;
+                    (void)sscanf(p, "%x", &dumdum);
+					audio_id = (unsigned char) dumdum;
 					if (PopFileDlg(szInput, hWnd, OPEN_TXT))
 					{
 						if (analyze_sync(hWnd, szInput, audio_id))
@@ -3389,7 +3463,7 @@ bool PopFileDlg(PTSTR pstrFileName, HWND hOwner, int Status)
 			break;
 
 		case OPEN_AVS:
-			szFilter = TEXT ("AVS File (*.avs)\0*.avs\0")  \
+			szFilter = TEXT ("Template File (*.avs, *.vpy)\0*.avs;*.vpy\0")  \
 				TEXT ("All Files (*.*)\0*.*\0");
 			break;
 
@@ -3801,7 +3875,16 @@ void Recovery()
 
 		for (i=0, Infiletotal = 0; i<NumLoadedFiles; i++)
 		{
-			Infilelength[i] = _filelengthi64(Infile[i]);
+#if 0
+			long long save = _fseeki64(Infile[i], 0, SEEK_CUR);
+			_fseeki64(Infile[i], 0, SEEK_END);
+			Infilelength[i] = _ftelli64(Infile[i]);
+			_fseeki64(Infile[i], save, SEEK_SET);
+#else
+			DWORD high;
+			Infilelength[i] = GetFileSize((HANDLE)_get_osfhandle(_fileno(Infile[i])), &high);
+			Infilelength[i] |= ((long long)high << 32);
+#endif
 			Infiletotal += Infilelength[i];
 		}
 	}
@@ -4138,7 +4221,7 @@ void UpdateWindowText(void)
 		float percent;
 		timing.ed = timeGetTime();
 		elapsed = (timing.ed-timing.op)/1000;
-		percent = (float)(100.0*(process.run-process.start+_telli64(Infile[CurrentFile]))/(process.end-process.start));
+		percent = (float)(100.0*(process.run-process.start+_ftelli64(Infile[CurrentFile]))/(process.end-process.start));
 		remain = (int)((timing.ed-timing.op)*(100.0-percent)/percent)/1000;
 
 		sprintf(szBuffer, "%d:%02d:%02d", elapsed/3600, (elapsed%3600)/60, elapsed%60);

@@ -17,6 +17,7 @@ int parse_d2v(HWND hWnd, char *szInput)
 	double sec;
 	char render[128], temp[20];
 	int type;
+	unsigned __int64 position;
 	
 	// Open the D2V file to be parsed.
 	fp = fopen(szInput, "r");
@@ -98,6 +99,8 @@ int parse_d2v(HWND hWnd, char *szInput)
 		while (*p++ != ' ');
 		while (*p++ != ' ');
 		while (*p++ != ' ');
+		position = _atoi64(p);
+		fprintf(wfp, "[OFFSET: %I64u]\n", position);
 		while (*p++ != ' ');
 		while (*p++ != ' ');
 		sscanf(p, "%d", &vob);

@@ -123,7 +123,7 @@ FILE *OpenAudio(char *path, char *mode, unsigned int id)
 #define LOCATE												\
 while (Rdptr >= (Rdbfr + BUFFER_SIZE))						\
 {															\
-	Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);	\
+	Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);	\
 	if (Read < BUFFER_SIZE) Next_File();					\
 	Rdptr -= BUFFER_SIZE;									\
 }
@@ -139,7 +139,7 @@ while (Rdptr >= (Rdbfr + BUFFER_SIZE))						\
 		{																		\
 			size = ac3_decode_data(Rdptr, BUFFER_SIZE+Rdbfr-Rdptr, size);		\
 			Packet_Length -= BUFFER_SIZE+Rdbfr-Rdptr;							\
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);			\
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);			\
 			if (Read < BUFFER_SIZE) Next_File();								\
 			Rdptr = Rdbfr;														\
 		}																		\
@@ -152,6 +152,31 @@ while (Rdptr >= (Rdbfr + BUFFER_SIZE))						\
 	}																			\
 }
 
+// For debugging. Use the macro for release code.
+_inline void demux_ac3(int *Packet_Length, unsigned int AUDIO_ID)
+{
+	if (SystemStream_Flag == TRANSPORT_STREAM && TransportPacketSize == 204)
+		*Packet_Length -= 16;
+	while (*Packet_Length > 0)
+	{
+		if (*Packet_Length+Rdptr > BUFFER_SIZE+Rdbfr)
+		{
+			fwrite(Rdptr, BUFFER_SIZE+Rdbfr-Rdptr, 1, audio[AUDIO_ID].file);
+			*Packet_Length -= BUFFER_SIZE+Rdbfr-Rdptr;
+//			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);
+			if (Read < BUFFER_SIZE) Next_File();
+			Rdptr = Rdbfr;
+		}
+		else
+		{
+			fwrite(Rdptr, *Packet_Length, 1, audio[AUDIO_ID].file);
+			Rdptr += *Packet_Length;
+			*Packet_Length = 0;
+		}
+	}
+}
+
 #define DEMUX_AC3																\
 {																				\
 	if (SystemStream_Flag == TRANSPORT_STREAM && TransportPacketSize == 204)	\
@@ -162,7 +187,7 @@ while (Rdptr >= (Rdbfr + BUFFER_SIZE))						\
 		{																		\
 			fwrite(Rdptr, BUFFER_SIZE+Rdbfr-Rdptr, 1, audio[AUDIO_ID].file);	\
 			Packet_Length -= BUFFER_SIZE+Rdbfr-Rdptr;							\
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);			\
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);			\
 			if (Read < BUFFER_SIZE) Next_File();								\
 			Rdptr = Rdbfr;														\
 		}																		\
@@ -188,7 +213,8 @@ void DemuxLPCM(int *size, int *Packet_Length, unsigned char PCM_Buffer[], unsign
 			memcpy(PCM_Buffer + *size, Rdptr, BUFFER_SIZE + Rdbfr - Rdptr);
 			*size += (BUFFER_SIZE + Rdbfr - Rdptr);
 			*Packet_Length -= (BUFFER_SIZE + Rdbfr - Rdptr);
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+//			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);
 			if (Read < BUFFER_SIZE)
 				Next_File();
 			Rdptr = Rdbfr;
@@ -261,7 +287,7 @@ void DemuxLPCM(int *size, int *Packet_Length, unsigned char PCM_Buffer[], unsign
 		{																		\
 			fwrite(Rdptr, BUFFER_SIZE+Rdbfr-Rdptr, 1, (fp));					\
 			Packet_Length -= BUFFER_SIZE+Rdbfr-Rdptr;							\
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);			\
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);			\
 			if (Read < BUFFER_SIZE) Next_File();								\
 			Rdptr = Rdbfr;														\
 		}																		\
@@ -284,7 +310,7 @@ void DemuxLPCM(int *size, int *Packet_Length, unsigned char PCM_Buffer[], unsign
 		{																		\
 			fwrite(Rdptr, BUFFER_SIZE+Rdbfr-Rdptr, 1, audio[AUDIO_ID].file);	\
 			Packet_Length -= BUFFER_SIZE+Rdbfr-Rdptr;							\
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);			\
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);			\
 			if (Read < BUFFER_SIZE) Next_File();								\
 			Rdptr = Rdbfr;														\
 		}																		\
@@ -394,7 +420,7 @@ void Initialize_Buffer()
 		if (temp + Rdptr > BUFFER_SIZE + Rdbfr)						\
 		{ 															\
 			temp  -= BUFFER_SIZE + Rdbfr - Rdptr;					\
-			Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);	\
+			Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);	\
 			if (Read < BUFFER_SIZE) Next_File();					\
 			Rdptr = Rdbfr;											\
 		} 															\
@@ -439,10 +465,6 @@ typedef struct
 } transport_packet;
 
 transport_packet tp_zeroed = { 0 };
-
-FILE *mpafp = NULL;
-FILE *mpvfp = NULL;
-FILE *pcmfp = NULL;
 
 // ATSC transport stream parser.
 // We ignore the 'continuity counter' because with some DTV
@@ -514,8 +536,9 @@ retry_sync:
 		// for indexing when an I frame is detected.
 		if (D2V_Flag)
 		{
-			PackHeaderPosition = _telli64(Infile[CurrentFile])
-								 - (__int64)BUFFER_SIZE + (__int64)Rdptr - (__int64)Rdbfr - 1;
+//			PackHeaderPosition = _telli64(Infile[CurrentFile])
+			PackHeaderPosition = _ftelli64(Infile[CurrentFile])
+			- (__int64)BUFFER_SIZE + (__int64)Rdptr - (__int64)Rdbfr - 1;
 		}
         // For M2TS (blueray) files, index the extra 4 bytes in front of the sync byte,
         // because DGDecode will expect to see them.
@@ -1444,7 +1467,7 @@ void Next_PVA_Packet()
 		// for indexing when an I frame is detected.
 		if (D2V_Flag)
 		{
-			PackHeaderPosition = _telli64(Infile[CurrentFile])
+			PackHeaderPosition = _ftelli64(Infile[CurrentFile])
 								 - (__int64)BUFFER_SIZE + (__int64)Rdptr - (__int64)Rdbfr - 3;
 		}
 
@@ -1695,7 +1718,7 @@ void Next_Packet()
 			case PACK_START_CODE:
 				if (D2V_Flag)
 				{
-					PackHeaderPosition = _telli64(Infile[CurrentFile]);
+					PackHeaderPosition = _ftelli64(Infile[CurrentFile]);
 					PackHeaderPosition = PackHeaderPosition - (__int64)BUFFER_SIZE + (__int64)Rdptr - 4 - (__int64)Rdbfr;
 				}
 				if (((tmp = Get_Byte()) & 0xf0) == 0x20)
@@ -1772,10 +1795,12 @@ void Next_Packet()
 					Rdptr += Packet_Length - 29;
 
 					sprintf(szBuffer, "%d", VOB_ID);
-					SetDlgItemText(hDlg, IDC_VOB_ID, szBuffer);
+					if (!D2V_Flag || !(Frame_Number % 1000))
+						SetDlgItemText(hDlg, IDC_VOB_ID, szBuffer);
 
 					sprintf(szBuffer, "%d", CELL_ID);
-					SetDlgItemText(hDlg, IDC_CELL_ID, szBuffer);
+					if (!D2V_Flag || !(Frame_Number % 1000))
+						SetDlgItemText(hDlg, IDC_CELL_ID, szBuffer);
 				}
 				else
 					Rdptr += Packet_Length;
@@ -1975,6 +2000,7 @@ oops:
 								}
 
 								DEMUX_AC3
+//								demux_ac3(&Packet_Length, AUDIO_ID);
 
 								audio[AUDIO_ID].rip = true;
 							}
@@ -2003,7 +2029,8 @@ oops:
 						}
 						else
 						{
-							DEMUX_AC3
+								DEMUX_AC3
+//							demux_ac3(&Packet_Length, AUDIO_ID);
 						}
 					}
 				}
@@ -2606,10 +2633,11 @@ void Flush_Buffer_All(unsigned int N)
 
 void Fill_Buffer()
 {
-	Read = _donread(Infile[CurrentFile], Rdbfr, BUFFER_SIZE);
+	Read = fread(Rdbfr, 1, BUFFER_SIZE, Infile[CurrentFile]);
 
 //	dprintf("DGIndex: Fill buffer\n");
-	if (Read < BUFFER_SIZE)	Next_File();
+	if (Read < BUFFER_SIZE)
+		Next_File();
 
 	Rdptr = Rdbfr;
 
@@ -2631,8 +2659,8 @@ void Next_File()
 		CurrentFile++;
 		process.run = 0;
 		for (i=0; i<CurrentFile; i++) process.run += Infilelength[i];
-		_lseeki64(Infile[CurrentFile], 0, SEEK_SET);
-		bytes = _donread(Infile[CurrentFile], Rdbfr + Read, BUFFER_SIZE - Read);
+		_fseeki64(Infile[CurrentFile], 0, SEEK_SET);
+		bytes = fread(Rdbfr + Read, 1, BUFFER_SIZE - Read, Infile[CurrentFile]);
 //		dprintf("DGIndex: Next file at %d\n", Rdbfr + Read);
 		if (Read + bytes == BUFFER_SIZE)
 			// The whole buffer has valid data.
@@ -2889,12 +2917,13 @@ void UpdateInfo()
 		mins = (pts % 3600) / 60;
 		secs = pts % 60;
 		sprintf(szBuffer, "%d:%02d:%02d", hours, mins, secs);
-		SetDlgItemText(hDlg, IDC_TIMESTAMP, szBuffer);
+		if (!D2V_Flag || !(Frame_Number % 1000))
+			SetDlgItemText(hDlg, IDC_TIMESTAMP, szBuffer);
 		for (i = 0, processed = 0; i < CurrentFile; i++)
 		{
 			processed += Infilelength[i];
 		}
-		processed += _telli64(Infile[CurrentFile]);
+		processed += _ftelli64(Infile[CurrentFile]);
 		processed *= TRACK_PITCH;
 		processed /= Infiletotal;
 		trackpos = (int) processed;

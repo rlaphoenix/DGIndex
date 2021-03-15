@@ -94,6 +94,7 @@ int PATParser::AnalyzeRaw(void)
 		return 1;
 	}
 
+resync:
 	if (SyncTransport() == 1)
 	{
 		fclose(fin);
@@ -111,6 +112,8 @@ int PATParser::AnalyzeRaw(void)
 	pkt_count = 0;
 	while ((pkt_count++ < MAX_PACKETS) && (read = fread(buffer, 1, TransportPacketSize, fin)) == TransportPacketSize)
 	{
+		if (buffer[0] != 0x47)
+			goto resync;
 		// Pick up the PID.
 		pid = ((buffer[1] & 0x1f) << 8) | buffer[2];
 		stream_id = 0;
