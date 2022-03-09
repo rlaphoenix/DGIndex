@@ -1,6 +1,10 @@
 # What is DGIndex?
 
-DGIndex, part of the DGMPGDec package, is primarily designed to create an index of an MPEG video stream, containing the location of each frame in the input stream, and some additional information about each frame. This index, or project file, is used by the companion [Avisynth](http://www.avisynth.org) filter DGDecode to provide frame-accurate serving of the video via an Avisynth script. DGIndex is able to decode and index most MPEG1/2 streams including elementary streams, program streams, VOBs, VCDs, SVCDs, PVA files, and transport streams. Additional features include: video demuxing (m1v/m2v), audio demuxing (ac3, dts, aac, mpa, and lpcm), optimized iDCTs, luminance filtering, cropping, and more.
+DGIndex, part of the DGMPGDec package, is primarily designed to create an index of an MPEG video stream, containing the location of each frame in the input stream, and some additional information about each frame.
+
+*Note: Donald Graft did not release source code for v2.0.0.6, so I cannot fork the changes here. Maybe one day it's source code will drop.*
+
+This index, or project file, is used by the companion [Avisynth](http://www.avisynth.org) filter DGDecode to provide frame-accurate serving of the video via an Avisynth script. DGIndex is able to decode and index most MPEG1/2 streams including elementary streams, program streams, VOBs, VCDs, SVCDs, PVA files, and transport streams. Additional features include: video demuxing (m1v/m2v), audio demuxing (ac3, dts, aac, mpa, and lpcm), optimized iDCTs, luminance filtering, cropping, and more.
 
 DGIndex is an evolution of Chia-chen Kuo's DVD2AVI and is baselined off DVD2AVI v1.77.3.
 The evolved version was renamed to DGIndex to avoid naming confusions, to reflect the significant divergence of functionality, and to clearly link it with neuron2's companion tools in DGMPGDec. Neuron2 wants to take great pains to acknowledge the origins of DGIndex as described in the Credits section below.
